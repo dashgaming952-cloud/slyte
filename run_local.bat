@@ -1,7 +1,7 @@
 @echo off
-title RMBG 2.0 Background Remover Local Service
+title RMBG 2.0 Background Remover Local API Service
 echo ======================================================================
-echo          RMBG 2.0 Background Remover - Local Launcher
+echo          RMBG 2.0 Background Remover - Local API Launcher
 echo ======================================================================
 echo.
 
@@ -47,13 +47,17 @@ if %errorlevel% neq 0 (
 echo [SUCCESS] Dependencies verified.
 echo.
 
-:: Run the Streamlit application
-echo [INFO] Starting Streamlit local server...
+:: Launch the HTML frontend in default browser
+echo [INFO] Opening HTML frontend in default browser...
+start index.html
+
+:: Run the FastAPI backend service
+echo [INFO] Starting local FastAPI backend server on http://localhost:8000...
 echo.
-streamlit run app.py
+uvicorn app:app --host 127.0.0.1 --port 8000
 
 if %errorlevel% neq 0 (
     echo.
-    echo [ERROR] Streamlit service stopped unexpectedly.
+    echo [ERROR] FastAPI backend stopped unexpectedly.
     pause
 )

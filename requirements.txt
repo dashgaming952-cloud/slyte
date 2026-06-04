@@ -10,3 +10,6 @@ timm
 huggingface_hub
 numpy
 tqdm
+fastapi
+uvicorn
+python-multipart
