@@ -1,12 +1,12 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
 streamlit>=1.35.0
-torch
-torchvision
+torch>=2.0.0
+torchvision>=0.15.0
 transformers>=4.40.0
 Pillow
 opencv-python-headless
+kornia
+timm
 huggingface_hub
 numpy
 tqdm
-accelerate
-kornia
-timm

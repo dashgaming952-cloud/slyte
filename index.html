@@ -1,0 +1,1380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Slyte Pants Segmentation Studio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0b0813;
+            --bg-secondary: rgba(20, 16, 35, 0.6);
+            --bg-tertiary: rgba(30, 25, 50, 0.8);
+            --border-glow: rgba(255, 105, 180, 0.15);
+            --text-primary: #f3f1f6;
+            --text-secondary: #a9a4b8;
+            --accent-pink: #ff69b4;
+            --accent-purple: #c44dff;
+            --accent-blue: #00b4ff;
+            --accent-green: #48c774;
+            --accent-orange: #ffb400;
+            --accent-gradient: linear-gradient(135deg, #ff69b4 0%, #c44dff 50%, #7b2fff 100%);
+            --shadow-glow: 0 8px 32px 0 rgba(196, 77, 255, 0.15);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(123, 47, 255, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(255, 105, 180, 0.12) 0%, transparent 45%);
+            background-attachment: fixed;
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        header {
+            padding: 1.5rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(11, 8, 19, 0.7);
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .logo-icon {
+            font-size: 2rem;
+            filter: drop-shadow(0 0 8px var(--accent-pink));
+            animation: pulse-icon 3s infinite ease-in-out;
+        }
+
+        @keyframes pulse-icon {
+            0%, 100% { transform: scale(1); filter: drop-shadow(0 0 8px var(--accent-pink)); }
+            50% { transform: scale(1.08); filter: drop-shadow(0 0 16px var(--accent-purple)); }
+        }
+
+        .logo-text h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+
+        .logo-text p {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .status-badge {
+            background: rgba(72, 199, 116, 0.1);
+            border: 1px solid rgba(72, 199, 116, 0.25);
+            color: var(--accent-green);
+            padding: 0.35rem 0.85rem;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--accent-green);
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 8px var(--accent-green);
+            animation: pulse-dot 1.5s infinite;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 1; }
+        }
+
+        main {
+            flex: 1;
+            max-width: 1400px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 2rem;
+            display: grid;
+            grid-template-columns: 360px 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 968px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .panel {
+            background: var(--bg-secondary);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 1.5rem;
+            backdrop-filter: blur(20px);
+            box-shadow: var(--shadow-glow);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .panel:hover {
+            border-color: rgba(255, 105, 180, 0.2);
+            box-shadow: 0 12px 40px 0 rgba(196, 77, 255, 0.2);
+        }
+
+        .panel-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-primary);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 0.75rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .form-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .form-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .form-label span.val-display {
+            color: var(--accent-pink);
+            font-weight: 700;
+        }
+
+        /* Color presets */
+        .color-presets {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .color-preset-btn {
+            height: 36px;
+            border-radius: 8px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .color-preset-btn.active {
+            border-color: var(--text-primary);
+            transform: scale(1.05);
+            box-shadow: 0 0 12px rgba(255, 255, 255, 0.15);
+        }
+
+        .color-preset-btn[data-color="pink"] { background-color: #ff69b4; }
+        .color-preset-btn[data-color="blue"] { background-color: #00b4ff; }
+        .color-preset-btn[data-color="green"] { background-color: #32cd32; }
+        .color-preset-btn[data-color="orange"] { background-color: #ff8c00; }
+        .color-preset-btn[data-color="custom"] { 
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #ffe66d); 
+        }
+
+        .color-preset-btn span {
+            display: none;
+            color: white;
+            font-size: 1rem;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+        }
+
+        .color-preset-btn.active span {
+            display: block;
+        }
+
+        .custom-color-picker-wrapper {
+            display: none;
+            align-items: center;
+            gap: 0.75rem;
+            background: rgba(0,0,0,0.2);
+            padding: 0.5rem 0.75rem;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.05);
+            margin-top: 0.5rem;
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .custom-color-picker-wrapper.visible {
+            display: flex;
+        }
+
+        input[type="color"] {
+            -webkit-appearance: none;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            background: none;
+        }
+
+        input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+
+        input[type="color"]::-webkit-color-swatch {
+            border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 50%;
+        }
+
+        .custom-color-hex {
+            font-family: monospace;
+            font-size: 0.85rem;
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            width: 80px;
+            text-transform: uppercase;
+        }
+
+        /* Sliders */
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--accent-pink);
+            box-shadow: 0 0 10px var(--accent-pink);
+            transition: all 0.1s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        /* Inputs & Options */
+        .text-input {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 0.65rem 0.85rem;
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .text-input:focus {
+            border-color: var(--accent-pink);
+            box-shadow: 0 0 8px rgba(255, 105, 180, 0.25);
+        }
+
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            cursor: pointer;
+            user-select: none;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .checkbox-container input {
+            display: none;
+        }
+
+        .checkbox-custom {
+            width: 18px;
+            height: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            position: relative;
+            transition: all 0.2s;
+            background: rgba(0,0,0,0.2);
+        }
+
+        .checkbox-container input:checked + .checkbox-custom {
+            background: var(--accent-pink);
+            border-color: var(--accent-pink);
+        }
+
+        .checkbox-container input:checked + .checkbox-custom::after {
+            content: "";
+            position: absolute;
+            left: 5px;
+            top: 2px;
+            width: 4px;
+            height: 8px;
+            border: solid white;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+
+        .radio-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 0.25rem;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .radio-btn {
+            text-align: center;
+            padding: 0.5rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .radio-btn.active {
+            background: var(--accent-pink);
+            color: white;
+            box-shadow: 0 2px 8px rgba(255, 105, 180, 0.2);
+        }
+
+        /* Workspace and Upload */
+        .workspace {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .dropzone-container {
+            flex: 1;
+            min-height: 400px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border: 2px dashed rgba(255, 255, 255, 0.1);
+            background: rgba(20, 16, 35, 0.3);
+            border-radius: 24px;
+            padding: 2rem;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .dropzone-container.dragover {
+            border-color: var(--accent-pink);
+            background: rgba(255, 105, 180, 0.05);
+            box-shadow: 0 0 20px rgba(255, 105, 180, 0.15) inset;
+            transform: scale(0.99);
+        }
+
+        .dropzone-icon {
+            width: 72px;
+            height: 72px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.2rem;
+            margin-bottom: 1.5rem;
+            color: var(--accent-pink);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s;
+        }
+
+        .dropzone-container:hover .dropzone-icon {
+            transform: translateY(-5px);
+            background: rgba(255, 105, 180, 0.1);
+            border-color: rgba(255, 105, 180, 0.2);
+            color: var(--accent-pink);
+            box-shadow: 0 8px 24px rgba(255, 105, 180, 0.15);
+        }
+
+        .dropzone-text h3 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            text-align: center;
+        }
+
+        .dropzone-text p {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            text-align: center;
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        /* Action Button */
+        .btn-primary {
+            width: 100%;
+            background: var(--accent-gradient);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 0.95rem;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 20px rgba(255, 105, 180, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(255, 105, 180, 0.5);
+            filter: brightness(1.1);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary:disabled {
+            background: rgba(255,255,255,0.05);
+            color: var(--text-secondary);
+            border: 1px solid rgba(255,255,255,0.05);
+            box-shadow: none;
+            cursor: not-allowed;
+            transform: none;
+            filter: none;
+        }
+
+        /* Visualizer and Results */
+        .result-container {
+            display: none; /* Shows up on success */
+            width: 100%;
+            flex-direction: column;
+            gap: 1.5rem;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .comparison-wrapper {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 768px) {
+            .comparison-wrapper {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .image-card {
+            background: var(--bg-tertiary);
+            border: 1px solid rgba(255,255,255,0.04);
+            border-radius: 20px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        }
+
+        .image-card-header {
+            padding: 0.75rem 1.25rem;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .image-card-body {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+            min-height: 350px;
+            max-height: 500px;
+            position: relative;
+        }
+
+        .image-card-body img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        /* Diagnostic grid */
+        .diag-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+        }
+
+        @media (max-width: 600px) {
+            .diag-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .diag-card {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 0.85rem;
+            text-align: center;
+            transition: border-color 0.2s;
+        }
+
+        .diag-card:hover {
+            border-color: rgba(255,105,180,0.15);
+        }
+
+        .diag-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .diag-val {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .orientation-banner {
+            border-radius: 12px;
+            padding: 0.75rem 1.25rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            background: rgba(255, 105, 180, 0.05);
+            border: 1px solid rgba(255, 105, 180, 0.15);
+        }
+
+        /* Download Section */
+        .download-panel {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            margin-top: 0.5rem;
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: var(--text-primary);
+            border-radius: 10px;
+            padding: 0.75rem 1.5rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.08);
+            border-color: rgba(255,255,255,0.2);
+        }
+
+        .btn-glow {
+            animation: pulse-glow 2s infinite;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 4px 20px rgba(255, 105, 180, 0.3); }
+            50% { box-shadow: 0 4px 30px rgba(255, 105, 180, 0.6); }
+        }
+
+        /* Loading / Processing Overlays */
+        .loader-container {
+            display: none; /* Shows up on running */
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(11, 8, 19, 0.95);
+            z-index: 10;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            gap: 1.5rem;
+        }
+
+        .progress-ring {
+            position: relative;
+            width: 120px;
+            height: 120px;
+        }
+
+        .progress-ring svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+
+        .progress-ring-circle {
+            fill: none;
+            stroke-width: 6;
+            stroke: rgba(255, 255, 255, 0.05);
+        }
+
+        .progress-ring-circle-fill {
+            fill: none;
+            stroke-width: 6;
+            stroke-linecap: round;
+            stroke: url(#gradient);
+            stroke-dasharray: 339;
+            stroke-dashoffset: 339;
+            transition: stroke-dashoffset 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .progress-percentage {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: white;
+        }
+
+        .pipeline-tracker {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            width: 100%;
+            max-width: 320px;
+        }
+
+        .pipeline-step {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            transition: all 0.3s;
+        }
+
+        .pipeline-step.active {
+            color: var(--accent-pink);
+            font-weight: 700;
+        }
+
+        .pipeline-step.completed {
+            color: var(--accent-green);
+        }
+
+        .step-icon {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            transition: all 0.3s;
+        }
+
+        .pipeline-step.active .step-icon {
+            border-color: var(--accent-pink);
+            background: rgba(255,105,180,0.1);
+            animation: pulse-step-icon 1.5s infinite;
+        }
+
+        @keyframes pulse-step-icon {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(255, 105, 180, 0.4); }
+            50% { box-shadow: 0 0 0 6px rgba(255, 105, 180, 0); }
+        }
+
+        .pipeline-step.completed .step-icon {
+            border-color: var(--accent-green);
+            background: var(--accent-green);
+            color: black;
+        }
+
+        /* Error notification */
+        .error-banner {
+            display: none;
+            background: rgba(255, 69, 58, 0.1);
+            border: 1px solid rgba(255, 69, 58, 0.25);
+            color: #ff453a;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            align-items: center;
+            gap: 0.75rem;
+            animation: shake 0.4s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-6px); }
+            75% { transform: translateX(6px); }
+        }
+
+        .error-close {
+            margin-left: auto;
+            cursor: pointer;
+            opacity: 0.7;
+        }
+
+        .error-close:hover {
+            opacity: 1;
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            border-top: 1px solid rgba(255,255,255,0.03);
+            margin-top: auto;
+        }
+
+        footer b {
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo-container">
+            <span class="logo-icon">👖</span>
+            <div class="logo-text">
+                <h1>Slyte Pants Segmentation</h1>
+                <p>Advanced RMBG-2.0 Engine</p>
+            </div>
+        </div>
+        <div class="status-badge">
+            <span class="status-dot"></span>
+            Modal GPU Sandbox Active
+        </div>
+    </header>
+
+    <main>
+        <!-- Sidebar controls -->
+        <div class="sidebar">
+            <div class="panel">
+                <h2 class="panel-title">⚙️ Process Settings</h2>
+                
+                <div class="form-group">
+                    <label class="form-label">Overlay Color</label>
+                    <div class="color-presets">
+                        <button class="color-preset-btn active" data-color="pink" title="Pink"><span>✓</span></button>
+                        <button class="color-preset-btn" data-color="blue" title="Blue"><span>✓</span></button>
+                        <button class="color-preset-btn" data-color="green" title="Green"><span>✓</span></button>
+                        <button class="color-preset-btn" data-color="orange" title="Orange"><span>✓</span></button>
+                        <button class="color-preset-btn" data-color="custom" title="Custom Picker"><span>🎨</span></button>
+                    </div>
+                    <div class="custom-color-picker-wrapper" id="picker-wrapper">
+                        <input type="color" id="custom-color-picker" value="#FF69B4">
+                        <input type="text" id="custom-color-hex" class="text-input" value="#FF69B4" readonly>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="opacity-slider">
+                        Overlay Opacity <span class="val-display" id="opacity-val">0.35</span>
+                    </label>
+                    <input type="range" id="opacity-slider" min="0" max="1" step="0.05" value="0.35">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="conf-slider">
+                        Detection Confidence <span class="val-display" id="conf-val">0.35</span>
+                    </label>
+                    <input type="range" id="conf-slider" min="0.10" max="0.95" step="0.05" value="0.35">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="label-input">Detection Labels</label>
+                    <input type="text" id="label-input" class="text-input" value="pants. jeans. cargo pants. trousers.">
+                </div>
+
+                <div class="form-group">
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="skip-detection-check">
+                        <span class="checkbox-custom"></span>
+                        Skip DINO pants check (run RMBG on everything)
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Output Format</label>
+                    <div class="radio-group">
+                        <div class="radio-btn active" data-val="transparent">Transparent</div>
+                        <div class="radio-btn" data-val="white">White BG</div>
+                    </div>
+                </div>
+            </div>
+            
+            <button class="btn-primary" id="process-btn" disabled>
+                <span>🚀</span> Run Segmentation
+            </button>
+        </div>
+
+        <!-- Main Workspace -->
+        <div class="workspace">
+            <!-- Error panel -->
+            <div class="error-banner" id="error-panel">
+                <span>⚠️</span>
+                <span class="error-message" id="error-message">Oops! Something went wrong.</span>
+                <span class="error-close" id="error-close">✕</span>
+            </div>
+
+            <!-- Upload Area -->
+            <div class="dropzone-container" id="dropzone">
+                <!-- Loader Overlay -->
+                <div class="loader-container" id="loader">
+                    <div class="progress-ring">
+                        <svg>
+                            <defs>
+                                <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stop-color="#ff69b4" />
+                                    <stop offset="100%" stop-color="#7b2fff" />
+                                </linearGradient>
+                            </defs>
+                            <circle class="progress-ring-circle" cx="60" cy="60" r="54"></circle>
+                            <circle class="progress-ring-circle-fill" id="progress-circle" cx="60" cy="60" r="54"></circle>
+                        </svg>
+                        <div class="progress-percentage" id="percentage">0%</div>
+                    </div>
+                    
+                    <div class="pipeline-tracker">
+                        <div class="pipeline-step" id="step-upload">
+                            <span class="step-icon">1</span> Transmitting Image...
+                        </div>
+                        <div class="pipeline-step" id="step-dino">
+                            <span class="step-icon">2</span> Grounding DINO Checking...
+                        </div>
+                        <div class="pipeline-step" id="step-rmbg">
+                            <span class="step-icon">3</span> RMBG Background Removal...
+                        </div>
+                        <div class="pipeline-step" id="step-overlay">
+                            <span class="step-icon">4</span> Compositing & Rotating...
+                        </div>
+                    </div>
+                </div>
+
+                <div id="dropzone-content">
+                    <div class="dropzone-icon">📤</div>
+                    <div class="dropzone-text">
+                        <h3>Drag & drop your apparel image</h3>
+                        <p>Supports PNG, JPG, JPEG, WEBP up to 10MB</p>
+                    </div>
+                </div>
+                <input type="file" id="file-input" accept="image/*">
+            </div>
+
+            <!-- Results Preview -->
+            <div class="result-container" id="result-viewer">
+                <div class="comparison-wrapper">
+                    <!-- Original -->
+                    <div class="image-card">
+                        <div class="image-card-header">
+                            <span>Input Image</span>
+                            <span id="input-dims">-</span>
+                        </div>
+                        <div class="image-card-body">
+                            <img id="original-preview" src="" alt="Original image">
+                        </div>
+                    </div>
+
+                    <!-- Result -->
+                    <div class="image-card" style="border-color: rgba(255, 105, 180, 0.3);">
+                        <div class="image-card-header">
+                            <span style="color: var(--accent-pink);">Segmented Output</span>
+                            <span id="output-format-badge">PNG</span>
+                        </div>
+                        <div class="image-card-body">
+                            <img id="output-preview" src="" alt="Segmented output">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Diagnostics Dashboard -->
+                <div class="panel">
+                    <h2 class="panel-title">📊 Diagnostics & Metadata</h2>
+                    <div class="diag-grid">
+                        <div class="diag-card">
+                            <div class="diag-label">Pants Detected</div>
+                            <div class="diag-val" id="diag-detections">-</div>
+                        </div>
+                        <div class="diag-card">
+                            <div class="diag-label">Object Dimensions</div>
+                            <div class="diag-val" id="diag-dims">-</div>
+                        </div>
+                        <div class="diag-card">
+                            <div class="diag-label">Top Band Width</div>
+                            <div class="diag-val" id="diag-top-width">-</div>
+                        </div>
+                        <div class="diag-card">
+                            <div class="diag-label">Bottom Band Width</div>
+                            <div class="diag-val" id="diag-bottom-width">-</div>
+                        </div>
+                    </div>
+                    <div class="orientation-banner" id="diag-orientation">
+                        <span>🔄</span> Orientation OK
+                    </div>
+                </div>
+
+                <!-- Download panel -->
+                <div class="download-panel">
+                    <button class="btn-secondary" id="reset-btn">Upload Another</button>
+                    <button class="btn-primary btn-glow" id="download-btn">⬇️ Download PNG</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        Powered by <b>RMBG-2.0</b> (briaai) · <b>Grounding DINO</b> · <b>Modal Serverless GPU</b>
+    </footer>
+
+    <script>
+        // DOM Elements
+        const dropzone = document.getElementById('dropzone');
+        const dropzoneContent = document.getElementById('dropzone-content');
+        const fileInput = document.getElementById('file-input');
+        const processBtn = document.getElementById('process-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const downloadBtn = document.getElementById('download-btn');
+        const resultViewer = document.getElementById('result-viewer');
+        const loader = document.getElementById('loader');
+        const progressCircle = document.getElementById('progress-circle');
+        const percentageText = document.getElementById('percentage');
+        
+        // Settings elements
+        const opacitySlider = document.getElementById('opacity-slider');
+        const opacityVal = document.getElementById('opacity-val');
+        const confSlider = document.getElementById('conf-slider');
+        const confVal = document.getElementById('conf-val');
+        const labelInput = document.getElementById('label-input');
+        const skipDetectionCheck = document.getElementById('skip-detection-check');
+        const radioBtns = document.querySelectorAll('.radio-btn');
+        const colorPresetBtns = document.querySelectorAll('.color-preset-btn');
+        const pickerWrapper = document.getElementById('picker-wrapper');
+        const customColorPicker = document.getElementById('custom-color-picker');
+        const customColorHex = document.getElementById('custom-color-hex');
+
+        // Preview images
+        const originalPreview = document.getElementById('original-preview');
+        const outputPreview = document.getElementById('output-preview');
+        
+        // Diagnostic nodes
+        const inputDims = document.getElementById('input-dims');
+        const outputFormatBadge = document.getElementById('output-format-badge');
+        const diagDetections = document.getElementById('diag-detections');
+        const diagDims = document.getElementById('diag-dims');
+        const diagTopWidth = document.getElementById('diag-top-width');
+        const diagBottomWidth = document.getElementById('diag-bottom-width');
+        const diagOrientation = document.getElementById('diag-orientation');
+        
+        // Error banner nodes
+        const errorPanel = document.getElementById('error-panel');
+        const errorMessage = document.getElementById('error-message');
+        const errorClose = document.getElementById('error-close');
+
+        // Pipeline step nodes
+        const stepUpload = document.getElementById('step-upload');
+        const stepDino = document.getElementById('step-dino');
+        const stepRmbg = document.getElementById('step-rmbg');
+        const stepOverlay = document.getElementById('step-overlay');
+
+        // State variables
+        let selectedFile = null;
+        let selectedColor = '255,105,180'; // Pink default RGB
+        let outputFormat = 'transparent'; // default
+        let processedImageBase64 = null;
+        let originalFileName = "segmented_output";
+
+        // Mappings for colors
+        const presetColors = {
+            'pink': '255,105,180',
+            'blue': '0,180,255',
+            'green': '50,205,50',
+            'orange': '255,140,0'
+        };
+
+        // Hex to RGB Helper
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? `${parseInt(result[1], 16)},${parseInt(result[2], 16)},${parseInt(result[3], 16)}` : null;
+        }
+
+        // RGB to Hex Helper
+        function rgbToHex(r, g, b) {
+            return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+        }
+
+        // Initialize UI triggers
+        opacitySlider.addEventListener('input', (e) => {
+            opacityVal.textContent = parseFloat(e.target.value).toFixed(2);
+        });
+
+        confSlider.addEventListener('input', (e) => {
+            confVal.textContent = parseFloat(e.target.value).toFixed(2);
+        });
+
+        // Color buttons handling
+        colorPresetBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                colorPresetBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                const colorType = btn.getAttribute('data-color');
+                if (colorType === 'custom') {
+                    pickerWrapper.classList.add('visible');
+                    const hex = customColorPicker.value;
+                    selectedColor = hexToRgb(hex);
+                    customColorHex.value = hex;
+                } else {
+                    pickerWrapper.classList.remove('visible');
+                    selectedColor = presetColors[colorType];
+                }
+            });
+        });
+
+        customColorPicker.addEventListener('input', (e) => {
+            const hex = e.target.value;
+            customColorHex.value = hex;
+            selectedColor = hexToRgb(hex);
+        });
+
+        // Output format selection
+        radioBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                radioBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                outputFormat = btn.getAttribute('data-val');
+            });
+        });
+
+        // Dropzone interaction
+        dropzone.addEventListener('click', () => {
+            if (!selectedFile) {
+                fileInput.click();
+            }
+        });
+
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('dragover');
+        });
+
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('dragover');
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                handleFileSelect(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileSelect(e.target.files[0]);
+            }
+        });
+
+        function showError(msg) {
+            errorMessage.textContent = msg;
+            errorPanel.style.display = 'flex';
+            setTimeout(() => {
+                errorPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 50);
+        }
+
+        errorClose.addEventListener('click', () => {
+            errorPanel.style.display = 'none';
+        });
+
+        function handleFileSelect(file) {
+            if (!file.type.startsWith('image/')) {
+                showError('Invalid file type. Please upload an image.');
+                return;
+            }
+            selectedFile = file;
+            originalFileName = file.name.split('.').slice(0, -1).join('.');
+            
+            // Read image and display preview
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                // Clear dropzone text and show original image
+                dropzoneContent.innerHTML = `
+                    <img src="${e.target.result}" style="max-height: 250px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+                    <div class="dropzone-text" style="margin-top: 1rem;">
+                        <h3>${file.name}</h3>
+                        <p>${(file.size / 1024).toFixed(1)} KB - Click to replace</p>
+                    </div>
+                `;
+                originalPreview.src = e.target.result;
+                
+                // Get original dimensions
+                const img = new Image();
+                img.onload = () => {
+                    inputDims.textContent = `${img.width} × ${img.height} px`;
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+            processBtn.disabled = false;
+        }
+
+        // Progress loader settings
+        function setProgress(percent) {
+            const radius = 54;
+            const circumference = 2 * Math.PI * radius;
+            const offset = circumference - (percent / 100) * circumference;
+            progressCircle.style.strokeDashoffset = offset;
+            percentageText.textContent = `${Math.round(percent)}%`;
+        }
+
+        function updatePipelineSteps(activeStepId, completedStepIds = []) {
+            const steps = ['step-upload', 'step-dino', 'step-rmbg', 'step-overlay'];
+            steps.forEach(stepId => {
+                const node = document.getElementById(stepId);
+                node.classList.remove('active', 'completed');
+                
+                if (stepId === activeStepId) {
+                    node.classList.add('active');
+                } else if (completedStepIds.includes(stepId)) {
+                    node.classList.add('completed');
+                    const icon = node.querySelector('.step-icon');
+                    icon.textContent = '✓';
+                }
+            });
+        }
+
+        // Run Segmentation Process
+        processBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+            
+            // Initialize progress UI
+            loader.style.display = 'flex';
+            setProgress(0);
+            updatePipelineSteps('step-upload');
+            errorPanel.style.display = 'none';
+
+            // Gather options
+            const opacity = opacitySlider.value;
+            const confThreshold = confSlider.value;
+            const labelText = labelInput.value;
+            const skipDetection = skipDetectionCheck.checked;
+            const transparent = (outputFormat === 'transparent');
+
+            // Build payload
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            formData.append('overlay_color', selectedColor);
+            formData.append('opacity', opacity);
+            formData.append('transparent', transparent);
+            formData.append('skip_detection', skipDetection);
+            formData.append('detection_text', labelText);
+            formData.append('conf_threshold', confThreshold);
+
+            // Animate progress simulation
+            let percent = 0;
+            const interval = setInterval(() => {
+                if (percent < 90) {
+                    percent += (90 - percent) * 0.05;
+                    setProgress(percent);
+                    
+                    if (percent > 15 && percent < 40) {
+                        updatePipelineSteps('step-dino', ['step-upload']);
+                    } else if (percent >= 40 && percent < 75) {
+                        updatePipelineSteps('step-rmbg', ['step-upload', 'step-dino']);
+                    } else if (percent >= 75) {
+                        updatePipelineSteps('step-overlay', ['step-upload', 'step-dino', 'step-rmbg']);
+                    }
+                }
+            }, 250);
+
+            try {
+                // Call API
+                const API_URL = 'https://dashgaming952--bria-bgremove-briaremover-bria-web.modal.run';
+                const response = await fetch(`${API_URL}/remove-bg`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                clearInterval(interval);
+
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.detail || 'Failed to complete segmentation.');
+                }
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    setProgress(100);
+                    updatePipelineSteps(null, ['step-upload', 'step-dino', 'step-rmbg', 'step-overlay']);
+                    
+                    setTimeout(() => {
+                        // Populate results
+                        processedImageBase64 = result.image;
+                        outputPreview.src = result.image;
+                        outputFormatBadge.textContent = transparent ? 'PNG (Transparent)' : 'PNG (White BG)';
+                        
+                        // Populate diagnostics
+                        diagDetections.textContent = result.detections !== null ? result.detections : 'N/A (Skipped Check)';
+                        
+                        // Handle diagnostics specs
+                        diagDims.textContent = `${result.obj_width} × ${result.obj_height} px`;
+                        diagTopWidth.textContent = `${result.top_width} px`;
+                        diagBottomWidth.textContent = `${result.bottom_width} px`;
+                        
+                        // Orientation text
+                        const orientationMsgStr = result.orientation_msgs.join(' → ');
+                        diagOrientation.innerHTML = `<span>🔄</span> ${orientationMsgStr}`;
+                        
+                        if (orientationMsgStr.toLowerCase().includes('rotated') || orientationMsgStr.toLowerCase().includes('upside-down')) {
+                            diagOrientation.style.background = 'rgba(255, 180, 0, 0.1)';
+                            diagOrientation.style.borderColor = 'rgba(255, 180, 0, 0.3)';
+                            diagOrientation.style.color = 'var(--accent-orange)';
+                        } else {
+                            diagOrientation.style.background = 'rgba(72, 199, 116, 0.1)';
+                            diagOrientation.style.borderColor = 'rgba(72, 199, 116, 0.3)';
+                            diagOrientation.style.color = 'var(--accent-green)';
+                        }
+
+                        // Switch view
+                        dropzone.style.display = 'none';
+                        resultViewer.style.display = 'flex';
+                        loader.style.display = 'none';
+                    }, 500);
+                } else {
+                    throw new Error(result.message || 'Segmentation completed but succeeded flag was false.');
+                }
+
+            } catch (err) {
+                clearInterval(interval);
+                loader.style.display = 'none';
+                showError(err.message || 'An error occurred while connecting to the GPU container.');
+            }
+        });
+
+        // Reset workspace to upload again
+        resetBtn.addEventListener('click', () => {
+            selectedFile = null;
+            processedImageBase64 = null;
+            fileInput.value = '';
+            
+            // Revert dropzone content
+            dropzoneContent.innerHTML = `
+                <div class="dropzone-icon">📤</div>
+                <div class="dropzone-text">
+                    <h3>Drag & drop your apparel image</h3>
+                    <p>Supports PNG, JPG, JPEG, WEBP up to 10MB</p>
+                </div>
+            `;
+            
+            resultViewer.style.display = 'none';
+            dropzone.style.display = 'flex';
+            processBtn.disabled = true;
+        });
+
+        // Download PNG output
+        downloadBtn.addEventListener('click', () => {
+            if (!processedImageBase64) return;
+            
+            const link = document.createElement('a');
+            link.href = processedImageBase64;
+            link.download = `${originalFileName}_rmbg_output.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+    </script>
+</body>
+</html>

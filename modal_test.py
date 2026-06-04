@@ -1,17 +1,18 @@
 # -*- coding: utf-8 -*-
 """
 modal_test.py
-RMBG-2.0 Pants Segmentation — Modal GPU Deployment
+RMBG-2.0 Pants Segmentation — Modal GPU Deployment with FastAPI Web Server
 
 Run locally:
-    modal run modal_test.py --image-path ./your_image.jpg
+    modal serve modal_test.py
 
-Deploy as persistent function:
+Deploy to production:
     modal deploy modal_test.py
 """
 
 import io
 import os
+import base64
 from pathlib import Path
 
 import modal
@@ -23,18 +24,28 @@ import modal
 
 image = (
     modal.Image.debian_slim(python_version="3.11")
+    # Install timm & kornia FIRST in their own layer so they are always
+    # present before transformers tries to import them via trust_remote_code.
+    .pip_install(
+        "timm>=0.9.16",
+        "kornia>=0.7.0",
+    )
     .pip_install(
         "torch",
         "torchvision",
         "transformers>=4.40.0",
         "Pillow",
-        "opencv-python-headless",   # headless — no GUI needed in container
-        "kornia",
+        "opencv-python-headless",
         "huggingface_hub",
         "numpy",
         "accelerate",
-        "timm",
+        "fastapi",
+        "uvicorn",
+        "python-multipart",
+        "einops",      # required by some RMBG-2.0 custom layers
+        "safetensors",
     )
+    .add_local_file("index.html", remote_path="/root/index.html")
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -160,7 +171,8 @@ def _apply_overlay(original, clean_mask, overlay_color=(255, 105, 180), opacity=
         rgba  = np.dstack([result, clean_mask])
         edges = cv2.Canny(clean_mask, 100, 200)
         rgba[edges > 0] = [overlay_color[0], overlay_color[1], overlay_color[2], 255]
-        return Image.fromarray(rgba, "RGBA")
+        output_arr = rgba
+        mode = "RGBA"
     else:
         white_bg   = np.ones((h, w, 3), dtype=np.float32) * 255
         foreground = original.astype(np.float32) * alpha_3d + white_bg * (1 - alpha_3d)
@@ -171,7 +183,54 @@ def _apply_overlay(original, clean_mask, overlay_color=(255, 105, 180), opacity=
         ).astype(np.uint8)
         edges = cv2.Canny(clean_mask, 100, 200)
         result[edges > 0] = list(overlay_color)
-        return Image.fromarray(result, "RGB")
+        output_arr = result
+        mode = "RGB"
+
+    # ── Orientation fix ──────────────────────────────────────────────────────
+    orientation_msg = []
+
+    ys, xs = np.where(clean_mask > 100)
+    if len(ys) > 0 and len(xs) > 0:
+        x_min, x_max = int(xs.min()), int(xs.max())
+        y_min, y_max = int(ys.min()), int(ys.max())
+        obj_width = x_max - x_min
+        obj_height = y_max - y_min
+    else:
+        obj_width = w
+        obj_height = h
+        x_min, x_max, y_min, y_max = 0, w, 0, h
+
+    if obj_width > obj_height:
+        orientation_msg.append("Horizontal image detected, rotated 90° clockwise")
+        output_arr = cv2.rotate(output_arr, cv2.ROTATE_90_CLOCKWISE)
+        clean_mask = cv2.rotate(clean_mask, cv2.ROTATE_90_CLOCKWISE)
+
+    # Re-calculate dimensions after potential rotation
+    ys, xs = np.where(clean_mask > 100)
+    if len(ys) > 0 and len(xs) > 0:
+        y_min, y_max = int(ys.min()), int(ys.max())
+        h_obj = y_max - y_min
+        
+        top_band = clean_mask[y_min: y_min + int(h_obj * 0.15)]
+        bottom_band = clean_mask[y_max - int(h_obj * 0.15): y_max]
+        
+        top_px = np.where(top_band > 100)[1]
+        bottom_px = np.where(bottom_band > 100)[1]
+        
+        top_width = int(top_px.max() - top_px.min()) if len(top_px) > 0 else 0
+        bottom_width = int(bottom_px.max() - bottom_px.min()) if len(bottom_px) > 0 else 0
+    else:
+        top_width = 0
+        bottom_width = 0
+
+    if bottom_width < top_width:
+        orientation_msg.append("Upside-down image detected, rotated 180°")
+        output_arr = cv2.rotate(output_arr, cv2.ROTATE_180)
+    else:
+        orientation_msg.append("Orientation OK")
+
+    output_image = Image.fromarray(output_arr, mode=mode)
+    return output_image, orientation_msg, obj_width, obj_height, top_width, bottom_width
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -195,22 +254,6 @@ def segment_pants(
 ) -> dict:
     """
     Run the full pants segmentation pipeline on Modal GPU.
-
-    Args:
-        image_bytes:     Raw bytes of the input image (JPEG / PNG / etc.)
-        overlay_color:   RGB tuple for the overlay tint (default: pink)
-        opacity:         Overlay opacity 0.0–1.0
-        transparent:     True = RGBA PNG output; False = white-bg RGB PNG
-        skip_detection:  Skip Grounding DINO pants check
-        detection_text:  Dot-separated labels for DINO detection
-        conf_threshold:  Minimum detection confidence
-
-    Returns:
-        dict with keys:
-            "success"       bool
-            "output_bytes"  PNG bytes of the result image (if success)
-            "message"       Status / error message
-            "detections"    Number of detected regions (if detection ran)
     """
     import torch
     from PIL import Image
@@ -265,9 +308,11 @@ def segment_pants(
     except Exception as e:
         return {"success": False, "message": f"RMBG inference failed: {e}"}
 
-    # ── Step 4: Apply Overlay ────────────────────────────────────────────────
-    print("[Modal] Applying overlay…")
-    output_image = _apply_overlay(original, clean_mask, overlay_color, opacity, transparent)
+    # ── Step 4: Apply Overlay & Fix Orientation ──────────────────────────────
+    print("[Modal] Applying overlay & fixing orientation…")
+    output_image, orient_msgs, obj_w, obj_h, top_w, bottom_w = _apply_overlay(
+        original, clean_mask, overlay_color, opacity, transparent
+    )
 
     # Encode output to PNG bytes
     buf = io.BytesIO()
@@ -284,7 +329,103 @@ def segment_pants(
         "output_bytes": output_bytes,
         "message": "Segmentation complete.",
         "detections": num_detections,
+        "orientation_msgs": orient_msgs,
+        "obj_width": obj_w,
+        "obj_height": obj_h,
+        "top_width": top_w,
+        "bottom_width": bottom_w,
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FASTAPI ASGI APP
+# Exposes the frontend HTML and the post endpoint to process images.
+# ─────────────────────────────────────────────────────────────────────────────
+
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException
+from fastapi.responses import HTMLResponse
+
+web_app = FastAPI(title="Slyte RMBG Segmentation Studio")
+
+
+@web_app.get("/", response_class=HTMLResponse)
+def read_root():
+    import os
+    # Serve index.html from container path, fallback to local path
+    html_path = "/root/index.html"
+    if not os.path.exists(html_path):
+        html_path = "index.html"
+    
+    with open(html_path, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+@web_app.post("/segment")
+async def api_segment(
+    file: UploadFile = File(...),
+    overlay_color: str = Form("255,105,180"),
+    opacity: float = Form(0.35),
+    transparent: bool = Form(True),
+    skip_detection: bool = Form(False),
+    detection_text: str = Form("pants. jeans. cargo pants. trousers."),
+    conf_threshold: float = Form(0.35),
+):
+    try:
+        # Read the image bytes uploaded by the user
+        image_bytes = await file.read()
+        
+        # Parse overlay_color (format: "r,g,b")
+        try:
+            rgb = tuple(map(int, overlay_color.split(",")))
+            if len(rgb) != 3:
+                raise ValueError()
+        except Exception:
+            rgb = (255, 105, 180) # Default to pink if parsing fails
+            
+        # Call segment_pants.local to run it inside the same container
+        result = segment_pants.local(
+            image_bytes=image_bytes,
+            overlay_color=rgb,
+            opacity=opacity,
+            transparent=transparent,
+            skip_detection=skip_detection,
+            detection_text=detection_text,
+            conf_threshold=conf_threshold,
+        )
+        
+        if not result["success"]:
+            raise HTTPException(status_code=400, detail=result["message"])
+            
+        # Convert output bytes to base64 for inline JSON response
+        encoded = base64.b64encode(result["output_bytes"]).decode("utf-8")
+        
+        return {
+            "success": True,
+            "image": f"data:image/png;base64,{encoded}",
+            "message": result["message"],
+            "detections": result["detections"],
+            "orientation_msgs": result["orientation_msgs"],
+            "obj_width": result["obj_width"],
+            "obj_height": result["obj_height"],
+            "top_width": result["top_width"],
+            "bottom_width": result["bottom_width"],
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.function(
+    gpu="T4",
+    timeout=600,
+    volumes={CACHE_DIR: model_cache},
+    secrets=[hf_secret] if hf_secret else [],
+)
+@modal.asgi_app()
+def fastapi_app():
+    return web_app
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -301,11 +442,6 @@ def main(
 ):
     """
     CLI entry point.
-
-    Examples:
-        modal run modal_test.py --image-path ./pants.jpg
-        modal run modal_test.py --image-path ./pants.jpg --skip-detection
-        modal run modal_test.py --image-path ./pants.jpg --output-path ./result.png
     """
     if not image_path:
         print("❌  Please provide --image-path <path-to-image>")
