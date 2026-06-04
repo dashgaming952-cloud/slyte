@@ -1,0 +1,9 @@
+streamlit>=1.35.0
+torch
+torchvision
+transformers>=4.40.0
+Pillow
+opencv-python
+kornia
+huggingface_hub
+numpy
