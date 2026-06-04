@@ -1,0 +1,10 @@
+streamlit>=1.35.0
+torch
+torchvision
+transformers>=4.40.0
+Pillow
+opencv-python-headless
+huggingface_hub
+numpy
+tqdm
+accelerate
