@@ -8,3 +8,5 @@ huggingface_hub
 numpy
 tqdm
 accelerate
+kornia
+timm
