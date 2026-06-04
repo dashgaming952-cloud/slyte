@@ -46,6 +46,8 @@ if "HF_TOKEN" not in os.environ:
 # ── Thread-Safe Global Model Caching ──────────────────────────────────────────
 model_lock = threading.Lock()
 rmbg_model = None
+model_ready = False      # True once model is loaded and ready
+model_error: Optional[str] = None  # Holds error string if pre-load failed
 
 def get_model(hf_token_override: Optional[str] = None):
     """
@@ -75,7 +77,9 @@ def get_model(hf_token_override: Optional[str] = None):
             )
             rmbg_model = rmbg_model.to("cpu")
             rmbg_model.eval()
-            
+            global model_ready
+            model_ready = True
+
         return rmbg_model
 
 # ── Image Processors ─────────────────────────────────────────────────────────
@@ -139,6 +143,23 @@ def run_rmbg_cpu(image: Image.Image, rmbg_model, isolate_largest: bool) -> Image
     
     return Image.fromarray(rgba, "RGBA")
 
+# ── Startup: Pre-load model in background thread ────────────────────────────
+def _preload_model_background():
+    """Runs model loading in a background thread so the app starts instantly."""
+    global model_error
+    try:
+        print("[startup] Beginning background model pre-load...")
+        get_model()
+        print("[startup] Model pre-loaded and ready.")
+    except Exception as exc:
+        model_error = str(exc)
+        print(f"[startup] Background model pre-load failed: {exc}")
+
+@app.on_event("startup")
+async def startup_event():
+    thread = threading.Thread(target=_preload_model_background, daemon=True)
+    thread.start()
+
 # ── API Endpoints ────────────────────────────────────────────────────────────
 @app.get("/")
 def health_check():
@@ -148,8 +169,19 @@ def health_check():
     return {
         "status": "online",
         "message": "RMBG-2.0 Background Remover API is healthy and running.",
+        "model_ready": model_ready,
         "device": "cpu"
     }
+
+@app.get("/status")
+def model_status():
+    """
+    Lightweight polling endpoint for the frontend to check if the model
+    has finished loading. Returns model_ready=true once the model is warm.
+    """
+    if model_error:
+        return {"model_ready": False, "error": model_error}
+    return {"model_ready": model_ready, "error": None}
 
 @app.post("/remove-bg")
 async def remove_bg(

@@ -621,10 +621,10 @@
                 <div class="panel-title">🌐 Backend Connection</div>
                 
                 <div class="form-group">
-                    <label class="form-label" for="api-url">Render API URL</label>
-                    <input type="text" id="api-url" class="text-input" placeholder="https://your-service.onrender.com" value="https://slyte-ts7z.onrender.com">
+                    <label class="form-label" for="api-url">Backend API URL</label>
+                    <input type="text" id="api-url" class="text-input" placeholder="https://your-service.onrender.com" id="api-url">
                     <p style="font-size:0.7rem; color:var(--text-secondary); margin-top:0.4rem; line-height: 1.3;">
-                        Set to your deployed Render URL or <code>http://localhost:8000</code> when running the backend service locally.
+                        Running locally via <code>run_local.bat</code>? This auto-fills to <code>http://localhost:8000</code>. For the cloud backend, enter your Render URL.
                     </p>
                 </div>
 
@@ -746,6 +746,23 @@
         const maxResSelect = document.getElementById('max-res');
         const isolateCheck = document.getElementById('isolate-obj');
         const radioBtns = document.querySelectorAll('.radio-btn');
+
+        // Auto-detect environment and pre-fill API URL
+        (function autoFillApiUrl() {
+            const host = window.location.hostname;
+            if (host === 'localhost' || host === '127.0.0.1') {
+                apiInput.value = 'http://localhost:8000';
+            } else if (window.location.protocol === 'file:') {
+                // Warn the user: file:// has CORS issues — point to localhost as best guess
+                apiInput.value = 'http://localhost:8000';
+                apiInput.style.borderColor = 'rgba(255,165,0,0.6)';
+                apiInput.title = '⚠️ Opened as file:// — CORS will block requests. Run via run_local.bat instead.';
+            } else {
+                // Served from a real HTTP origin (e.g. Render static site, GitHub Pages)
+                apiInput.value = 'https://slyte-ts7z.onrender.com';
+            }
+        })();
+
         const btnProcess = document.getElementById('btn-process');
         const btnReset = document.getElementById('btn-reset');
         const btnDownload = document.getElementById('btn-download');
@@ -890,7 +907,7 @@
             // Normalize backend url (strip trailing slash)
             let backendUrl = apiInput.value.trim();
             if (!backendUrl) {
-                showError('Please configure your Render API URL first.');
+                showError('Please configure your Backend API URL first.');
                 return;
             }
             if (backendUrl.endsWith('/')) {
@@ -900,18 +917,49 @@
             hideError();
             loader.style.display = 'flex';
             btnProcess.setAttribute('disabled', 'true');
-            
-            // Stepwise loading texts
-            loaderSub.textContent = "Connecting to API backend...";
+
+            // ── Step 1: Poll /status until model is ready ────────────────────
+            loaderSub.textContent = 'Checking backend model status…';
+            let modelReady = false;
+            const statusDeadline = Date.now() + 120_000; // wait up to 2 min
+
+            while (!modelReady && Date.now() < statusDeadline) {
+                try {
+                    const statusRes = await fetch(`${backendUrl}/status`, { method: 'GET' });
+                    if (statusRes.ok) {
+                        const statusData = await statusRes.json();
+                        if (statusData.error) {
+                            throw new Error(`Model failed to load on server: ${statusData.error}`);
+                        }
+                        if (statusData.model_ready) {
+                            modelReady = true;
+                            break;
+                        }
+                        // Model still warming up
+                        const elapsed = Math.round((Date.now() - (statusDeadline - 120_000)) / 1000);
+                        loaderSub.textContent = `Warming up model on server… (${elapsed}s elapsed — downloading weights from Hugging Face Hub on first deploy)`;
+                    }
+                } catch (statusErr) {
+                    // If /status doesn't exist (old backend), just proceed directly
+                    if (statusErr.message.includes('Model failed')) throw statusErr;
+                    modelReady = true; // Assume ready if /status endpoint unavailable
+                    break;
+                }
+                await new Promise(r => setTimeout(r, 3000)); // poll every 3s
+            }
+
+            if (!modelReady) {
+                throw new Error('Backend model took too long to warm up (>2 min). Check your Render service logs.');
+            }
+
+            // ── Step 2: Run inference ────────────────────────────────────────
+            loaderSub.textContent = 'Sending image to backend…';
             const timer1 = setTimeout(() => {
-                loaderSub.textContent = "Downloading model weights from Hugging Face Hub (this may take up to 20-30s on first load)...";
-            }, 2500);
+                loaderSub.textContent = 'Running RMBG-2.0 inference on CPU (this takes 10–40s depending on image size)…';
+            }, 2000);
             const timer2 = setTimeout(() => {
-                loaderSub.textContent = "Running background removal model inference on CPU...";
-            }, 8000);
-            const timer3 = setTimeout(() => {
-                loaderSub.textContent = "Smoothing edges and encoding composite image...";
-            }, 15000);
+                loaderSub.textContent = 'Smoothing edges and encoding output image…';
+            }, 20000);
 
             // Construct form data payload
             const formData = new FormData();
@@ -935,23 +983,26 @@
                 });
 
                 if (!response.ok) {
-                    const errorDetail = await response.json().catch(() => ({ detail: 'Unknown API error' }));
+                    if (response.status === 502) {
+                        throw new Error('Backend returned 502 — the server likely ran out of memory or timed out. Try a lower Max Resolution or upgrade your Render plan.');
+                    }
+                    const errorDetail = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
                     throw new Error(errorDetail.detail || `Server returned HTTP ${response.status}`);
                 }
 
                 const data = await response.json();
-                
+
                 if (data.success) {
                     outputImageBase64 = data.image;
                     resultPreview.src = data.image;
                     resultDims.textContent = `${data.width} × ${data.height} px`;
-                    
+
                     // Show comparison panel
                     loader.style.display = 'none';
                     btnProcess.style.display = 'none';
                     resultContainer.style.display = 'flex';
                 } else {
-                    throw new Error('Background removal failed');
+                    throw new Error('Background removal failed: server returned success=false');
                 }
 
             } catch (err) {
@@ -962,9 +1013,9 @@
             } finally {
                 clearTimeout(timer1);
                 clearTimeout(timer2);
-                clearTimeout(timer3);
             }
         });
+
 
         // Trigger result download
         btnDownload.addEventListener('click', () => {
